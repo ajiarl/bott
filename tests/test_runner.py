@@ -110,6 +110,13 @@ class _ShopeeKWHandler(BaseHTTPRequestHandler):
             self._serve_file(TESTS_DIR / "cart.html", "text/html")
         elif path == "/checkout":
             self._serve_file(TESTS_DIR / "checkout.html", "text/html")
+        elif path == "/payment-success":
+            data = b"<html><body><h1>Order placed!</h1></body></html>"
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
         else:
             self.send_response(404)
             self.end_headers()
@@ -148,7 +155,7 @@ def start_server(port: int) -> HTTPServer:
 async def run_test() -> None:
     from ntp_sync        import calibrate_ntp, true_time, build_target_ts, async_wait_until, ClockSync
     from browser_engine  import open_browser, close_browser
-    from observer_engine import inject_checkout_observer
+    from observer_engine import start_checkout_observer, finish_checkout_observer
     from api_checkout    import fire_checkout_page_b
 
     log.info("═" * 62)
@@ -212,10 +219,12 @@ async def run_test() -> None:
     log.info("[3/5] ✓ T-0 tercapai. Delta: %+.3f ms", delta_ms)
 
     # ── [4/5] Observer inject ─────────────────────────────────────────────
-    log.info("[4/5] Menyuntikkan MutationObserver …")
-    t_obs = time.perf_counter()
+    log.info("[4/5] Pre-injecting MutationObserver …")
+    obs_handle = await start_checkout_observer(page)
+
+    log.info("[4/5] Waiting for T-0 signal …")
     try:
-        obs_result = await inject_checkout_observer(page, sync)
+        obs_result = await finish_checkout_observer(obs_handle, page, sync)
     except Exception as exc:
         log.error("[4/5] Observer gagal: %s", exc)
         await close_browser(playwright, context)

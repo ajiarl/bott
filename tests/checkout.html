@@ -110,7 +110,7 @@
 
     <!-- ── TARGET BUTTON PAGE B ── -->
     <button id="confirm-btn"
-            class="shopee-button-solid shopee-button-solid--primary">
+            class="stardust-button stardust-button--primary stardust-button--large">
       Buat Pesanan
     </button>
   </div>
@@ -169,6 +169,8 @@
       log(`  koordinat klik: (${e.clientX.toFixed(0)}, ${e.clientY.toFixed(0)})`, 'log-info');
       log('  Pesanan dibuat!', 'log-ok');
       document.getElementById('success-overlay').classList.add('show');
+      // Simulasi navigasi ke payment page setelah 300ms
+      setTimeout(() => { window.location.href = '/payment-success'; }, 300);
     } else {
       log(`✗ KONFIRMASI DITOLAK!  isTrusted=false  (klik JS synthetic)`, 'log-err');
     }

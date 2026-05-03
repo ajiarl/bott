@@ -123,44 +123,40 @@ async def _auto_check_items(page: Page) -> None:
         log.warning("Auto-centang gagal (non-fatal): %s — lanjut.", exc)
 
 
-async def inject_checkout_observer(page: Page, sync: ClockSync) -> dict:
-
-    # Auto-centang HANYA untuk mode refresh — setelah reload centang hilang.
-    # Mode dynamic tidak reload, centang tetap ada, skip ini.
-    if cfg.CHECKOUT_MODE == "refresh":
-        log.info("Auto-centang item keranjang …")
-        await _auto_check_items(page)
-
-    # wait_for_selector dipindahkan ke main.py (sebelum timing gate) untuk speed maksimal
-    # log.info("Menunggu tombol Checkout muncul di DOM …")
-
-
+async def start_checkout_observer(page: Page) -> any:
+    """
+    Suntik MutationObserver ke V8 heap tapi jangan ditunggu hasilnya dulu.
+    Dipanggil SEBELUM T-0 untuk menghemat ~50-100ms latensi evaluate_handle.
+    """
     js = _OBSERVER_JS.replace("{timeout_ms}", str(cfg.OBSERVER_TIMEOUT_MS))
-
-    log.info(
-        "MutationObserver diinjeksi — menunggu tombol aktif …\n"
-        "          selector: %s",
-        CHECKOUT_BTN_SELECTOR,
-    )
-
     try:
-        handle = await page.evaluate_handle(js)
+        # non-blocking: return handle
+        return await page.evaluate_handle(js)
+    except Exception as exc:
+        raise RuntimeError(f"Gagal pre-inject observer: {exc}") from exc
+
+
+async def finish_checkout_observer(handle: any, page: Page, sync: ClockSync) -> dict:
+    """
+    Tunggu hasil dari observer handle dan lakukan hardware click.
+    Dipanggil SETELAH T-0 (atau setelah reload).
+    """
+    try:
         result = await handle.json_value()
     except Exception as exc:
-        raise RuntimeError(f"Observer gagal: {exc}") from exc
+        raise RuntimeError(f"Observer handle failed: {exc}") from exc
 
     try:
         await hardware_click(
             page,
             CHECKOUT_BTN_SELECTOR,
-            scroll_into_view = False,    # tombol sudah visible di cart
-            verify_trusted   = False,    # skip verifikasi — kecepatan prioritas
+            scroll_into_view = False,
+            verify_trusted   = False,
         )
     except Exception as exc:
         raise RuntimeError(f"Hardware click gagal: {exc}") from exc
 
     result["clicked"] = True
-
     t_fire = datetime.datetime.utcfromtimestamp(true_time(sync)).strftime("%H:%M:%S.%f")
 
     log.info("━" * 56)
@@ -173,3 +169,16 @@ async def inject_checkout_observer(page: Page, sync: ClockSync) -> dict:
     log.info("━" * 56)
 
     return result
+
+
+async def inject_checkout_observer(page: Page, sync: ClockSync) -> dict:
+    """
+    Fungsi legacy/convenience: pre-centang, suntik, dan tunggu.
+    """
+    if cfg.CHECKOUT_MODE == "refresh":
+        log.info("Auto-centang item keranjang …")
+        await _auto_check_items(page)
+
+    log.info("MutationObserver diinjeksi — menunggu tombol aktif …")
+    handle = await start_checkout_observer(page)
+    return await finish_checkout_observer(handle, page, sync)

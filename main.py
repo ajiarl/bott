@@ -34,7 +34,7 @@ import datetime
 import config as cfg
 from ntp_sync        import calibrate_ntp, true_time, build_target_ts, async_wait_until, ClockSync
 from browser_engine  import open_browser, close_browser
-from observer_engine import inject_checkout_observer
+from observer_engine import inject_checkout_observer, start_checkout_observer, finish_checkout_observer
 from api_checkout    import fire_checkout_page_b, ApiCheckoutResult
 
 logging.basicConfig(
@@ -137,10 +137,14 @@ async def main() -> None:
 
     try:
         if cfg.CHECKOUT_MODE == "dynamic":
+            log.info("[DYNAMIC] Pre-injecting observer …")
+            obs_handle = await start_checkout_observer(page)
+
             log.info("[DYNAMIC] Menunggu T-0 …")
             await async_wait_until(sync, target_unix)
-            log.info("[DYNAMIC] T-0 tercapai. Menyuntikkan observer …")
-            await inject_checkout_observer(page, sync)
+
+            log.info("[DYNAMIC] T-0 tercapai. Menunggu sinyal observer …")
+            await finish_checkout_observer(obs_handle, page, sync)
 
         elif cfg.CHECKOUT_MODE == "refresh":
             reload_ts = target_unix - (cfg.PRE_RELOAD_LEAD_MS / 1_000)

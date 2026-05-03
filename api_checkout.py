@@ -254,7 +254,7 @@ async def _fallback_hardware_click(page: Page, t_start: float) -> ApiCheckoutRes
     def _is_navigated() -> bool:
         """Cek apakah halaman sudah pindah dari checkout."""
         u = page.url
-        return u != url_before or "payment" in u or "order" in u
+        return u != url_before or "payment" in u or "order" in u or "success" in u
 
     for attempt in range(1, max_retries + 1):
         # Cek: mungkin klik sebelumnya sudah navigasi (redirect lambat)
