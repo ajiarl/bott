@@ -70,6 +70,9 @@ async def fire_checkout_page_b(page: Page) -> ApiCheckoutResult:
         log.warning("[PAGE-B] Navigasi timeout — tetap coba checkout/get …")
 
     # ── Retry checkout/get ────────────────────────────────────────────────
+    # NOTE: _CHECKOUT_GET_RETRIES hanya berlaku untuk error transient
+    # (network timeout, server 500). Error permanent Shopee (misal
+    # "informasi produk diperbarui") langsung break → fallback UI.
     checkout_data = None
     for attempt in range(1, _CHECKOUT_GET_RETRIES + 1):
         t_attempt = (time.perf_counter() - t_start) * 1000
@@ -215,13 +218,6 @@ async def _fallback_hardware_click(page: Page, t_start: float) -> ApiCheckoutRes
     # ── Dismiss popup yang mungkin muncul ─────────────────────────────
     await _dismiss_popups(page)
 
-    # ── Screenshot sebelum klik (debug) ───────────────────────────────
-    try:
-        await page.screenshot(path="debug_before_click.png")
-        log.info("[PAGE-B] Screenshot tersimpan: debug_before_click.png")
-    except Exception:
-        pass
-
     # ── Cari tombol "Buat Pesanan" ────────────────────────────────────
     confirm_loc = page.locator(
         "button.stardust-button.stardust-button--primary.stardust-button--large",
@@ -251,6 +247,7 @@ async def _fallback_hardware_click(page: Page, t_start: float) -> ApiCheckoutRes
             )
 
     # ── Log info tombol ───────────────────────────────────────────────
+    t_visible = (time.perf_counter() - t_start) * 1000
     log.info("[PAGE-B] Tombol muncul T+%.0f ms", t_visible)
 
     # ── Klik dengan retry (max 3x) ────────────────────────────────────
@@ -304,9 +301,9 @@ async def _fallback_hardware_click(page: Page, t_start: float) -> ApiCheckoutRes
                 error_msg=str(exc), elapsed_ms=elapsed_ms, method="ui",
             )
 
-        # ── Polling URL: cek setiap 500ms selama 5 detik ──────────────
-        for _poll in range(10):
-            await asyncio.sleep(0.5)
+        # ── Polling URL: cek setiap 300ms selama 2.4 detik ──────────────
+        for _poll in range(8):
+            await asyncio.sleep(0.3)
             if _is_navigated():
                 elapsed_ms = (time.perf_counter() - t_start) * 1000
                 log.info("[PAGE-B] ✓ URL berubah → %s  T+%.0f ms", page.url, elapsed_ms)

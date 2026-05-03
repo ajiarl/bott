@@ -149,7 +149,7 @@ async def run_test() -> None:
     from ntp_sync        import calibrate_ntp, true_time, build_target_ts, async_wait_until, ClockSync
     from browser_engine  import open_browser, close_browser
     from observer_engine import inject_checkout_observer
-    from transition      import wait_for_page_b_and_confirm
+    from api_checkout    import fire_checkout_page_b
 
     log.info("═" * 62)
     log.info("  SHOPEE WAR BOT — LOCAL TEST")
@@ -219,12 +219,12 @@ async def run_test() -> None:
     log.info("[4/5] ✓ Observer klik berhasil  latency=%.3f ms",
              obs_result.get("elapsed_ms", 0))
 
-    # ── [5/5] Transisi + konfirmasi ───────────────────────────────────────
-    log.info("[5/5] Menunggu Page B + klik konfirmasi …")
+    # ── [5/5] API checkout + fallback UI ────────────────────────────────────
+    log.info("[5/5] Menunggu Page B — API place_order + fallback UI …")
     try:
-        result = await wait_for_page_b_and_confirm(page)
+        result = await fire_checkout_page_b(page)
     except Exception as exc:
-        log.error("[5/5] Transisi gagal: %s", exc)
+        log.error("[5/5] Checkout gagal: %s", exc)
         await close_browser(playwright, context)
         return
 
@@ -233,21 +233,21 @@ async def run_test() -> None:
     log.info("  HASIL TEST")
     log.info("═" * 62)
     log.info("  Status          : %s", "✅ PASS" if result.success else "❌ FAIL")
-    log.info("  URL final       : %s", result.final_url)
+    log.info("  Method          : %s", result.method)
+    log.info("  Elapsed         : %.1f ms", result.elapsed_ms)
+    log.info("  Order ID        : %s", result.order_id or "(none)")
+    if result.error_msg:
+        log.info("  Error           : %s", result.error_msg)
     log.info("  Timing breakdown:")
     log.info("    NTP delta     : %+.3f ms   (target akurasi < 2 ms)", delta_ms)
     log.info("    Observer klik : %.3f ms    (target < 5 ms)",
              obs_result.get("elapsed_ms", 0))
-    log.info("    URL change    : %.1f ms",  result.ms_url_change)
-    log.info("    Tombol muncul : %.1f ms",  result.ms_confirm_visible)
-    if result.confirm_click:
-        log.info("    Confirm klik  : %.1f ms",  result.confirm_click.elapsed_ms)
-        log.info("    isTrusted     : %s",        result.confirm_click.trusted)
+    log.info("    Total Page B  : %.1f ms",  result.elapsed_ms)
     log.info("═" * 62)
 
     verdict(result.success, delta_ms,
             obs_result.get("elapsed_ms", 999),
-            result.confirm_click)
+            None)  # ApiCheckoutResult tidak punya confirm_click
 
     await asyncio.sleep(4)
     await close_browser(playwright, context)
