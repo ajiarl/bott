@@ -86,9 +86,17 @@ async def fire_checkout_page_b(page: Page) -> ApiCheckoutResult:
             await asyncio.sleep(_CHECKOUT_GET_INTERVAL)
             continue
 
-        raw          = result_get.get("data", {})
-        checkout_data = raw.get("data") or raw
-        session_id   = checkout_data.get("checkout_session_id")
+        raw = result_get.get("data", {})
+        
+        # Ekstrak checkout_data: pastikan ambil level yang berisi session_id
+        if "checkout_session_id" in raw:
+            checkout_data = raw
+        elif isinstance(raw.get("data"), dict) and "checkout_session_id" in raw["data"]:
+            checkout_data = raw["data"]
+        else:
+            checkout_data = None
+
+        session_id = checkout_data.get("checkout_session_id") if checkout_data else None
 
         if session_id:
             t_got = (time.perf_counter() - t_start) * 1000
@@ -196,16 +204,22 @@ async def _dismiss_popups(page: Page) -> None:
         "button.shopee-button-solid--primary:has-text('Mengerti')",
         "button:has-text('Kembali')",
     ]
-    for sel in selectors:
-        try:
-            btn = page.locator(sel).first
-            if await btn.is_visible():
-                await btn.click(force=True, timeout=1_000)
-                log.info("[PAGE-B] Popup ditutup via: %s", sel)
-                await asyncio.sleep(0.3)
-                return
-        except Exception:
-            continue
+    # Cek maksimal 2x untuk menangkap stacked popups atau yang muncul sedikit telat
+    for _ in range(2):
+        found = False
+        for sel in selectors:
+            try:
+                btn = page.locator(sel).first
+                if await btn.is_visible():
+                    await btn.click(force=True, timeout=1_000)
+                    log.info("[PAGE-B] Popup ditutup via: %s", sel)
+                    await asyncio.sleep(0.3)
+                    found = True
+                    break # Cek ulang dari awal list selector untuk stacked popups
+            except Exception:
+                continue
+        if not found:
+            break
 
 
 async def _fallback_hardware_click(page: Page, t_start: float) -> ApiCheckoutResult:
@@ -298,19 +312,23 @@ async def _fallback_hardware_click(page: Page, t_start: float) -> ApiCheckoutRes
                 error_msg=str(exc), elapsed_ms=elapsed_ms, method="ui",
             )
 
-        # ── Polling URL: cek setiap 300ms selama 2.4 detik ──────────────
-        for _poll in range(8):
-            await asyncio.sleep(0.3)
-            if _is_navigated():
-                elapsed_ms = (time.perf_counter() - t_start) * 1000
-                log.info("[PAGE-B] ✓ URL berubah → %s  T+%.0f ms", page.url, elapsed_ms)
-                return ApiCheckoutResult(
-                    success=True, order_id=None,
-                    error_msg=None, elapsed_ms=elapsed_ms, method="ui",
-                )
-
-        log.warning("[PAGE-B] URL tidak berubah 2.5s — retry …")
-        await _dismiss_popups(page)
+        # ── Tunggu navigasi: timeout 2.5 detik ────────────────────────────
+        try:
+            # Menggunakan wait_for_url dengan predicate untuk deteksi cepat
+            await page.wait_for_url(
+                lambda u: u != url_before or "payment" in u.lower() or "order" in u.lower() or "success" in u.lower(),
+                timeout = 2500,
+                wait_until = "commit"
+            )
+            elapsed_ms = (time.perf_counter() - t_start) * 1000
+            log.info("[PAGE-B] ✓ URL berubah → %s  T+%.0f ms", page.url, elapsed_ms)
+            return ApiCheckoutResult(
+                success=True, order_id=None,
+                error_msg=None, elapsed_ms=elapsed_ms, method="ui",
+            )
+        except Exception:
+            log.warning("[PAGE-B] URL tidak berubah dalam 2.5s — retry …")
+            await _dismiss_popups(page)
 
     # Semua retry habis — cek terakhir
     if _is_navigated():

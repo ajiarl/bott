@@ -197,10 +197,20 @@ async def _move_mouse_naturally(
     Masih menghasilkan isTrusted=true — CDP mouseMoved tetap dikirim.
     Anti-fingerprint tetap terjaga karena arc Bézier masih acak setiap run.
     """
+    # Robust mouse position detection (handling internal Playwright variations)
+    # _x/_y (older versions), _impl (newer), or fallback to center
     try:
-        curr_x: float = page.mouse._x  # type: ignore[attr-defined]
-        curr_y: float = page.mouse._y  # type: ignore[attr-defined]
-    except AttributeError:
+        mouse = page.mouse
+        if hasattr(mouse, "_x") and hasattr(mouse, "_y"):
+            curr_x, curr_y = float(mouse._x), float(mouse._y)
+        elif hasattr(mouse, "_impl") and hasattr(mouse._impl, "_x"):
+            curr_x, curr_y = float(mouse._impl._x), float(mouse._impl._y)
+        elif hasattr(mouse, "_position"):
+            pos = mouse._position
+            curr_x, curr_y = float(pos.get("x", 0)), float(pos.get("y", 0))
+        else:
+            raise AttributeError("No mouse position found")
+    except Exception:
         vp = page.viewport_size or {"width": 1280, "height": 800}
         curr_x = vp["width"]  / 2
         curr_y = vp["height"] / 2

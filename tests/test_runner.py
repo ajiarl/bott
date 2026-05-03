@@ -62,7 +62,7 @@ cfg.CHECKOUT_URL_PATTERN = f"**/checkout**"
 
 # Selector sama dengan yang ada di HTML kita
 cfg.CHECKOUT_BTN_SELECTOR      = "button.shopee-button-solid.shopee-button-solid--primary"
-cfg.CONFIRM_BTN_SELECTOR       = "button.shopee-button-solid.shopee-button-solid--primary"
+cfg.CONFIRM_BTN_SELECTOR       = "button.stardust-button.stardust-button--primary"
 cfg.CHECKOUT_SKELETON_SELECTOR = None   # Page B kita tidak pakai skeleton selector
 
 # ── FLASH_SALE_TIME sengaja tidak diset di sini ───────────────────────────

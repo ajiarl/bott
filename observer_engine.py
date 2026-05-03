@@ -123,28 +123,24 @@ async def _auto_check_items(page: Page) -> None:
         log.warning("Auto-centang gagal (non-fatal): %s — lanjut.", exc)
 
 
-async def start_checkout_observer(page: Page) -> any:
+async def start_checkout_observer(page: Page) -> asyncio.Task:
     """
     Suntik MutationObserver ke V8 heap tapi jangan ditunggu hasilnya dulu.
-    Dipanggil SEBELUM T-0 untuk menghemat ~50-100ms latensi evaluate_handle.
+    Menggunakan asyncio.Task agar eksekusi JS berjalan di background.
     """
     js = _OBSERVER_JS.replace("{timeout_ms}", str(cfg.OBSERVER_TIMEOUT_MS))
-    try:
-        # non-blocking: return handle
-        return await page.evaluate_handle(js)
-    except Exception as exc:
-        raise RuntimeError(f"Gagal pre-inject observer: {exc}") from exc
+    # Buat task untuk menjalankan evaluate di background
+    return asyncio.create_task(page.evaluate(js))
 
 
-async def finish_checkout_observer(handle: any, page: Page, sync: ClockSync) -> dict:
+async def finish_checkout_observer(task: asyncio.Task, page: Page, sync: ClockSync) -> dict:
     """
-    Tunggu hasil dari observer handle dan lakukan hardware click.
-    Dipanggil SETELAH T-0 (atau setelah reload).
+    Tunggu hasil dari background task observer dan lakukan hardware click.
     """
     try:
-        result = await handle.json_value()
+        result = await task
     except Exception as exc:
-        raise RuntimeError(f"Observer handle failed: {exc}") from exc
+        raise RuntimeError(f"Observer background task failed: {exc}") from exc
 
     try:
         await hardware_click(
