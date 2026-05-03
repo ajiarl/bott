@@ -131,18 +131,9 @@ async def inject_checkout_observer(page: Page, sync: ClockSync) -> dict:
         log.info("Auto-centang item keranjang …")
         await _auto_check_items(page)
 
-    log.info("Menunggu tombol Checkout muncul di DOM …")
-    try:
-        await page.wait_for_selector(
-            CHECKOUT_BTN_SELECTOR,
-            state   = "attached",
-            timeout = 8_000,
-        )
-        log.info("Tombol Checkout ditemukan di DOM ✓")
-    except Exception as exc:
-        raise RuntimeError(
-            f"Tombol Checkout tidak muncul. Error: {exc}"
-        ) from exc
+    # wait_for_selector dipindahkan ke main.py (sebelum timing gate) untuk speed maksimal
+    # log.info("Menunggu tombol Checkout muncul di DOM …")
+
 
     js = _OBSERVER_JS.replace("{timeout_ms}", str(cfg.OBSERVER_TIMEOUT_MS))
 

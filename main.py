@@ -103,6 +103,7 @@ async def main() -> None:
         second      = cfg.FLASH_SALE_SECOND,
         microsecond = cfg.FLASH_SALE_USEC,
         use_utc     = True,
+        sync        = sync,
     )
     target_dt = datetime.datetime.utcfromtimestamp(target_unix)
 
@@ -120,6 +121,14 @@ async def main() -> None:
 
     now_str = datetime.datetime.utcfromtimestamp(true_time(sync)).strftime("%H:%M:%S.%f")
     log.info("Keranjang siap | NTP: %s UTC", now_str)
+
+    # Pastikan tombol ada di DOM SEBELUM menunggu T-0 (untuk speed maksimal)
+    try:
+        await page.wait_for_selector(cfg.CHECKOUT_BTN_SELECTOR, state="attached", timeout=15_000)
+        log.info("Tombol Checkout siap di DOM ✓")
+    except Exception as exc:
+        log.error("Tombol Checkout tidak ditemukan di DOM: %s", exc)
+        return
 
     # ── ③ Timing Gate + ④ Observer Click (Page A) ─────────────────────────
     log.info("━" * 60)
@@ -144,7 +153,12 @@ async def main() -> None:
             await async_wait_until(sync, reload_ts)
             log.info("[REFRESH] Reload halaman keranjang …")
             await page.reload(wait_until="domcontentloaded", timeout=15_000)
-            log.info("[REFRESH] Halaman termuat ulang. Menyuntikkan observer …")
+            log.info("[REFRESH] Halaman termuat ulang. Menunggu tombol Checkout di DOM …")
+            try:
+                await page.wait_for_selector(cfg.CHECKOUT_BTN_SELECTOR, state="attached", timeout=10_000)
+            except Exception:
+                pass
+            log.info("[REFRESH] Menyuntikkan observer …")
             await inject_checkout_observer(page, sync)
 
         else:

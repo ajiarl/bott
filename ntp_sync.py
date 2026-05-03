@@ -156,16 +156,25 @@ def build_target_ts(
     second     : int,
     microsecond: int  = 0,
     use_utc    : bool = True,
+    sync       : ClockSync | None = None,
 ) -> float:
     """
     Bangun Unix timestamp untuk HH:MM:SS berikutnya (hari ini atau besok
-    jika waktu sudah lewat).
+    jika waktu sudah lewat). Menggunakan true_time(sync) jika sync tersedia.
 
     Args:
         use_utc: True = target dalam UTC (direkomendasikan — konsisten dengan NTP).
+        sync: Hasil kalibrasi NTP (opsional tapi disarankan).
     """
-    tz     = datetime.timezone.utc if use_utc else None
-    now    = datetime.datetime.now(tz)
+    tz = datetime.timezone.utc if use_utc else None
+
+    if sync:
+        # Gunakan NTP time untuk menentukan 'hari ini'
+        now = datetime.datetime.fromtimestamp(true_time(sync), tz)
+    else:
+        # Fallback ke system clock
+        now = datetime.datetime.now(tz)
+
     target = now.replace(hour=hour, minute=minute, second=second,
                          microsecond=microsecond)
     if target <= now:

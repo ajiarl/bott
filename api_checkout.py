@@ -235,11 +235,8 @@ async def _fallback_hardware_click(page: Page, t_start: float) -> ApiCheckoutRes
             await confirm_loc.wait_for(state="visible", timeout=5_000)
         except Exception as exc:
             elapsed_ms = (time.perf_counter() - t_start) * 1000
-            # Screenshot saat gagal
-            try:
-                await page.screenshot(path="debug_button_not_found.png")
-            except Exception:
-                pass
+            # Screenshot dihapus untuk speed
+
             return ApiCheckoutResult(
                 success=False, order_id=None,
                 error_msg=f"Tombol tidak muncul: {exc}",

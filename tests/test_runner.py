@@ -187,6 +187,7 @@ async def run_test() -> None:
         second      = cfg.FLASH_SALE_SECOND,
         microsecond = cfg.FLASH_SALE_USEC,
         use_utc     = True,
+        sync        = sync,
     )
 
     log.info("  Flash sale time : %s UTC  (dalam %.1f s)",
@@ -199,6 +200,10 @@ async def run_test() -> None:
     log.info("[2/5] Buka browser → %s", cfg.SHOPEE_CART_URL)
     playwright, context, page = await open_browser(cfg.SHOPEE_CART_URL)
     log.info("[2/5] ✓ Browser siap.")
+
+    # Pastikan tombol ada di DOM
+    await page.wait_for_selector(cfg.CHECKOUT_BTN_SELECTOR, state="attached", timeout=10_000)
+    log.info("Tombol Checkout siap di DOM ✓")
 
     # ── [3/5] Timing wait ─────────────────────────────────────────────────
     remaining = target_unix - true_time(sync)
