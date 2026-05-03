@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <title>Shopee KW — Checkout</title>
+  <style>
+    body { font-family: sans-serif; background: #f5f5f5; margin: 0; padding: 24px; }
+    .card { background: #fff; border-radius: 8px; padding: 20px; max-width: 600px;
+            margin: 0 auto; box-shadow: 0 2px 8px rgba(0,0,0,.1); }
+    h2 { color: #ee4d2d; margin: 0 0 16px; }
+
+    /* ── Tombol konfirmasi — dicari bot di Page B ── */
+    .shopee-button-solid {
+      padding: 14px 32px; border: none; border-radius: 4px;
+      font-size: 15px; font-weight: 600; cursor: pointer; width: 100%;
+      transition: background .2s, opacity .3s;
+    }
+    .shopee-button-solid--primary { background: #ee4d2d; color: #fff; }
+    .shopee-button-solid--primary:hover { background: #d23f21; }
+    .shopee-button-solid--primary.loading { background: #ccc; color: #999; cursor: not-allowed; }
+
+    /* ── Skeleton loader ── */
+    .skeleton { background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+                background-size: 200% 100%; animation: shimmer 1.2s infinite;
+                border-radius: 4px; }
+    @keyframes shimmer { 0%{background-position:200%} 100%{background-position:-200%} }
+    .skel-line { height: 14px; margin-bottom: 10px; }
+    .skel-price { height: 20px; width: 120px; margin-bottom: 16px; }
+
+    .section { border: 1px solid #eee; border-radius: 6px; padding: 16px; margin-bottom: 16px; }
+    .section-title { font-weight: 700; font-size: 13px; color: #888; margin-bottom: 12px; }
+    .summary-row { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 14px; }
+    .total-row { font-weight: 700; font-size: 16px; color: #ee4d2d; border-top: 1px solid #eee; padding-top: 10px; margin-top: 10px; }
+
+    /* ── Log ── */
+    .log-box { background: #1a1a2e; color: #e0e0e0; border-radius: 6px; padding: 12px;
+               font-family: monospace; font-size: 12px; height: 160px;
+               overflow-y: auto; margin-top: 16px; }
+    .log-ok   { color: #69f0ae; }
+    .log-warn { color: #ffd740; }
+    .log-info { color: #82b1ff; }
+    .log-err  { color: #ff5252; }
+
+    /* ── Success overlay ── */
+    .success-overlay { display: none; position: fixed; inset: 0; background: rgba(0,178,106,.92);
+                       align-items: center; justify-content: center; flex-direction: column;
+                       color: #fff; font-size: 22px; font-weight: 700; z-index: 999; }
+    .success-overlay.show { display: flex; }
+    .checkmark { font-size: 72px; margin-bottom: 16px; }
+  </style>
+</head>
+<body>
+
+<!-- ── Success overlay ── -->
+<div class="success-overlay" id="success-overlay">
+  <div class="checkmark">✅</div>
+  <div>PESANAN BERHASIL DIBUAT!</div>
+  <div style="font-size:15px;margin-top:8px;opacity:.9">Bot berhasil menyelesaikan war</div>
+  <div style="font-size:13px;margin-top:16px;opacity:.8">Ingat: batalkan pesanan ini secara manual jika ini test barang receh</div>
+</div>
+
+<div class="card">
+  <h2>💳 Shopee KW — Checkout</h2>
+
+  <!-- ── Simulasi skeleton loading (XHR heavy) ── -->
+  <div id="skeleton-area">
+    <div class="section">
+      <div class="section-title">ALAMAT PENGIRIMAN</div>
+      <div class="skeleton skel-line" style="width:70%"></div>
+      <div class="skeleton skel-line" style="width:90%"></div>
+      <div class="skeleton skel-line" style="width:50%"></div>
+    </div>
+    <div class="section">
+      <div class="section-title">PESANAN</div>
+      <div class="skeleton skel-line" style="width:80%"></div>
+      <div class="skeleton skel-line" style="width:60%"></div>
+    </div>
+    <div class="section">
+      <div class="section-title">TOTAL PEMBAYARAN</div>
+      <div class="skeleton skel-price"></div>
+    </div>
+    <div style="margin-top:8px;color:#aaa;font-size:13px;text-align:center">
+      ⏳ Memuat detail pesanan... (<span id="load-timer">0</span>ms)
+    </div>
+  </div>
+
+  <!-- ── Konten sebenarnya (muncul setelah "XHR selesai") ── -->
+  <div id="real-content" style="display:none">
+    <div class="section">
+      <div class="section-title">ALAMAT PENGIRIMAN</div>
+      <div style="font-weight:600">Test User  (+62 812-3456-7890)</div>
+      <div style="color:#555;font-size:13px;margin-top:4px">Jl. Bot Automation No. 1, Jakarta Selatan</div>
+    </div>
+    <div class="section">
+      <div class="section-title">PESANAN</div>
+      <div style="display:flex;gap:10px;align-items:center">
+        <div style="font-size:28px">📎</div>
+        <div>
+          <div style="font-size:14px">Jepit Rambut Premium Pack</div>
+          <div style="color:#ee4d2d;font-weight:600">Rp500</div>
+        </div>
+      </div>
+    </div>
+    <div class="section">
+      <div class="summary-row"><span>Subtotal</span><span>Rp500</span></div>
+      <div class="summary-row"><span>Ongkos kirim</span><span>Rp0</span></div>
+      <div class="summary-row"><span>Voucher</span><span style="color:#00b26a">-Rp0</span></div>
+      <div class="summary-row total-row"><span>Total Pembayaran</span><span>Rp500</span></div>
+    </div>
+
+    <!-- ── TARGET BUTTON PAGE B ── -->
+    <button id="confirm-btn"
+            class="shopee-button-solid shopee-button-solid--primary">
+      Buat Pesanan
+    </button>
+  </div>
+
+  <!-- Log terminal -->
+  <div class="log-box" id="log-box"></div>
+</div>
+
+<script>
+  const logBox = document.getElementById('log-box');
+  const t_pageload = performance.now();
+
+  // ── Logger ──────────────────────────────────────────────────────────────
+  function log(msg, cls = '') {
+    const elapsed = (performance.now() - t_pageload).toFixed(2);
+    const line    = document.createElement('div');
+    line.className = cls;
+    line.textContent = `[+${elapsed}ms] ${msg}`;
+    logBox.appendChild(line);
+    logBox.scrollTop = logBox.scrollHeight;
+    console.log(`[+${elapsed}ms] ${msg}`);
+  }
+
+  log('Page B dimuat — simulasi heavy XHR...', 'log-warn');
+
+  // ── Simulasi loading timer ───────────────────────────────────────────────
+  const timerEl = document.getElementById('load-timer');
+  const iv = setInterval(() => {
+    timerEl.textContent = (performance.now() - t_pageload).toFixed(0);
+  }, 16);
+
+  // ── Simulasi XHR heavy: konten muncul setelah 1500ms ───────────────────
+  // (Ini mensimulasikan React render setelah API response)
+  const XHR_DELAY_MS = 1500;
+
+  setTimeout(() => {
+    clearInterval(iv);
+    document.getElementById('skeleton-area').style.display = 'none';
+    document.getElementById('real-content').style.display  = 'block';
+
+    const elapsed = (performance.now() - t_pageload).toFixed(2);
+    log(`✓ XHR selesai — konten dan tombol muncul setelah ${elapsed}ms`, 'log-ok');
+    log('  Bot harus mendeteksi tombol dan klik dengan isTrusted=true', 'log-info');
+  }, XHR_DELAY_MS);
+
+  // ── Event listener tombol konfirmasi ─────────────────────────────────────
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('#confirm-btn');
+    if (!btn) return;
+
+    const elapsed = (performance.now() - t_pageload).toFixed(2);
+    const trusted = e.isTrusted;
+
+    if (trusted) {
+      log(`✓ KONFIRMASI DITERIMA!  isTrusted=true  t=+${elapsed}ms`, 'log-ok');
+      log(`  koordinat klik: (${e.clientX.toFixed(0)}, ${e.clientY.toFixed(0)})`, 'log-info');
+      log('  Pesanan dibuat!', 'log-ok');
+      document.getElementById('success-overlay').classList.add('show');
+    } else {
+      log(`✗ KONFIRMASI DITOLAK!  isTrusted=false  (klik JS synthetic)`, 'log-err');
+    }
+  });
+
+  log(`Menunggu XHR selesai (simulasi ${XHR_DELAY_MS}ms)...`, 'log-warn');
+</script>
+</body>
+</html>

@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <title>Shopee KW — Keranjang</title>
+  <style>
+    body { font-family: sans-serif; background: #f5f5f5; margin: 0; padding: 24px; }
+    .card { background: #fff; border-radius: 8px; padding: 20px; max-width: 600px;
+            margin: 0 auto; box-shadow: 0 2px 8px rgba(0,0,0,.1); }
+    h2 { color: #ee4d2d; margin: 0 0 16px; }
+
+    /* ── Tombol yang dicari bot ── */
+    .shopee-button-solid {
+      padding: 12px 28px; border: none; border-radius: 4px;
+      font-size: 15px; font-weight: 600; cursor: pointer;
+      transition: background .25s, opacity .25s; margin-top: 20px;
+    }
+    .shopee-button-solid--primary { background: #d0d0d0; color: #999; cursor: not-allowed; }
+    .shopee-button-solid--primary.active { background: #ee4d2d; color: #fff; cursor: pointer; }
+
+    /* ── Panel kontrol test ── */
+    .controls { background: #fff8e1; border: 1px solid #ffe082; border-radius: 6px;
+                padding: 14px; margin-bottom: 18px; font-size: 13px; }
+    .controls label { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .controls select, .controls input[type=number] {
+      border: 1px solid #ccc; border-radius: 4px; padding: 4px 8px; font-size: 13px; }
+
+    /* ── Countdown ── */
+    .countdown { font-size: 28px; font-weight: 700; color: #ee4d2d;
+                 text-align: center; margin: 16px 0; letter-spacing: 2px; }
+    .countdown.done { color: #00b26a; }
+
+    /* ── Log terminal ── */
+    .log-box { background: #1a1a2e; color: #e0e0e0; border-radius: 6px; padding: 12px;
+               font-family: monospace; font-size: 12px; height: 200px;
+               overflow-y: auto; margin-top: 16px; }
+    .log-ok   { color: #69f0ae; }
+    .log-warn { color: #ffd740; }
+    .log-err  { color: #ff5252; }
+    .log-info { color: #82b1ff; }
+
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 10px;
+             font-size: 11px; font-weight: 600; margin-left: 6px; }
+    .badge-ok  { background: #e8f5e9; color: #2e7d32; }
+    .badge-bad { background: #ffebee; color: #c62828; }
+  </style>
+</head>
+<body>
+<div class="card">
+  <h2>🛒 Shopee KW — Keranjang</h2>
+
+  <!-- ── Panel kontrol (hanya tampil di browser, bukan di bot) ── -->
+  <div class="controls">
+    <strong>⚙ Pengaturan Test</strong>
+    <label style="margin-top:8px">
+      Mode disable:
+      <select id="mode">
+        <option value="disabled">HTML disabled attr  (Kasus A — paling umum)</option>
+        <option value="aria">aria-disabled="true"  (Kasus A — React pattern)</option>
+        <option value="both">HTML disabled + aria-disabled  (Kasus A — keduanya)</option>
+      </select>
+    </label>
+    <label>
+      Tombol aktif setelah:
+      <input type="number" id="delay" value="5" min="2" max="30"> detik
+    </label>
+    <small>💡 Buka <code>http://localhost:8080/cart?mode=aria&delay=3</code> untuk set via URL.</small>
+  </div>
+
+  <!-- Item dummy -->
+  <div style="border:1px solid #eee;border-radius:6px;padding:12px;margin-bottom:12px;display:flex;gap:12px;align-items:center">
+    <div style="width:56px;height:56px;background:#f0f0f0;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:24px">📎</div>
+    <div>
+      <div style="font-weight:600">Jepit Rambut Premium Pack</div>
+      <div style="color:#ee4d2d;font-weight:700;margin-top:4px">Rp500</div>
+      <div style="color:#888;font-size:12px">Stok: 999 | ✓ Dipilih</div>
+    </div>
+  </div>
+
+  <!-- Countdown -->
+  <div class="countdown" id="countdown">–</div>
+
+  <!-- TARGET BUTTON — selector dicari bot -->
+  <button id="checkout-btn"
+          class="shopee-button-solid shopee-button-solid--primary"
+          disabled>
+    Checkout (1 item)
+  </button>
+
+  <!-- Log terminal -->
+  <div class="log-box" id="log-box"></div>
+</div>
+
+<script>
+  // ── Baca parameter dari URL (untuk override via query string) ──────────
+  const params  = new URLSearchParams(location.search);
+  const MODE    = params.get('mode')  || document.getElementById('mode').value;
+  const DELAY_S = parseInt(params.get('delay') || document.getElementById('delay').value);
+
+  // Set kontrol UI sesuai param
+  document.getElementById('mode').value  = MODE;
+  document.getElementById('delay').value = DELAY_S;
+
+  const btn      = document.getElementById('checkout-btn');
+  const logBox   = document.getElementById('log-box');
+  const countdown = document.getElementById('countdown');
+
+  // ── Logger visual ──────────────────────────────────────────────────────
+  function log(msg, cls = '') {
+    const t    = performance.now().toFixed(2);
+    const line = document.createElement('div');
+    line.className = cls;
+    line.textContent = `[${t}ms] ${msg}`;
+    logBox.appendChild(line);
+    logBox.scrollTop = logBox.scrollHeight;
+    console.log(`[${t}ms] ${msg}`);
+  }
+
+  // ── Terapkan mode disable ke tombol ───────────────────────────────────
+  function applyDisable() {
+    if (MODE === 'aria') {
+      btn.removeAttribute('disabled');
+      btn.setAttribute('aria-disabled', 'true');
+    } else if (MODE === 'both') {
+      btn.setAttribute('disabled', '');
+      btn.setAttribute('aria-disabled', 'true');
+    } else {
+      // default: HTML disabled
+      btn.setAttribute('disabled', '');
+    }
+  }
+
+  function enableButton() {
+    btn.removeAttribute('disabled');
+    btn.removeAttribute('aria-disabled');
+    btn.classList.add('active');
+    log('⚡ FLASH SALE MULAI — disabled dihapus!', 'log-ok');
+    log(`   Mode: ${MODE}  |  Selector: button.shopee-button-solid.shopee-button-solid--primary`, 'log-info');
+    countdown.textContent = '⚡ AKTIF!';
+    countdown.classList.add('done');
+  }
+
+  // ── Init ──────────────────────────────────────────────────────────────
+  applyDisable();
+  log(`Mode: "${MODE}" | Delay: ${DELAY_S}s | Tombol DISABLED`, 'log-warn');
+  log(`Bot harus mendeteksi mutasi dan klik dalam < 5ms setelah disable dihapus`, 'log-info');
+
+  // ── Countdown timer ───────────────────────────────────────────────────
+  const t0 = Date.now();
+  const iv = setInterval(() => {
+    const elapsed = (Date.now() - t0) / 1000;
+    const left    = Math.max(0, DELAY_S - elapsed);
+    countdown.textContent = left.toFixed(2) + ' s';
+    if (left <= 0) clearInterval(iv);
+  }, 50);
+
+  // ── Enable tombol setelah delay ───────────────────────────────────────
+  const flashStart = performance.now() + DELAY_S * 1000;
+  setTimeout(enableButton, DELAY_S * 1000);
+
+  // ── Event listener klik ───────────────────────────────────────────────
+  btn.addEventListener('click', (e) => {
+    const elapsed = (performance.now() - flashStart).toFixed(3);
+    const trusted = e.isTrusted;
+
+    if (trusted) {
+      log(`✓ KLIK DITERIMA!  isTrusted=true  delta dari aktif: ${elapsed}ms`, 'log-ok');
+      log('  → Navigasi ke halaman checkout...', 'log-info');
+      // Navigasi ke Page B
+      setTimeout(() => { window.location.href = '/checkout'; }, 80);
+    } else {
+      log(`✗ KLIK DITOLAK!  isTrusted=false  (klik JS synthetic)`, 'log-err');
+      log('  → Security layer: request dropped.', 'log-err');
+    }
+  });
+
+  // Sync kontrol UI dengan select & input
+  document.getElementById('mode').addEventListener('change', () => location.reload());
+  document.getElementById('delay').addEventListener('change', () => location.reload());
+</script>
+</body>
+</html>
