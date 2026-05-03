@@ -86,7 +86,7 @@ _SETUP_OBSERVER_JS = """
 """
 
 _AWAIT_OBSERVER_JS = """
-() => window.__shopee_war_promise
+() => window.__shopee_war_promise || Promise.reject('Observer belum disetup')
 """
 
 
@@ -175,5 +175,5 @@ async def inject_checkout_observer(page: Page, sync: ClockSync) -> dict:
         await _auto_check_items(page)
 
     log.info("MutationObserver diinjeksi — menunggu tombol aktif …")
-    handle = await start_checkout_observer(page)
-    return await finish_checkout_observer(handle, page, sync)
+    await start_checkout_observer(page)
+    return await finish_checkout_observer(page, sync)

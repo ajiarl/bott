@@ -165,8 +165,8 @@ async def run_test() -> None:
     log.info("  Delay aktif     : %s detik", ARGS.delay)
     log.info("═" * 62)
 
-    # ── [1/5] NTP ─────────────────────────────────────────────────────────
-    log.info("[1/5] Kalibrasi NTP …")
+    # ── [1/6] NTP ─────────────────────────────────────────────────────────
+    log.info("[1/6] Kalibrasi NTP …")
     try:
         sync = calibrate_ntp()
     except Exception as exc:
@@ -201,45 +201,45 @@ async def run_test() -> None:
              _target_dt.strftime("%H:%M:%S"),
              target_unix - true_time(sync))
     log.info("  Cart URL        : %s", cfg.SHOPEE_CART_URL)
-    log.info("[1/5] ✓ NTP siap.")
+    log.info("[1/6] ✓ NTP siap.")
 
-    # ── [2/5] Buka browser ────────────────────────────────────────────────
-    log.info("[2/5] Buka browser → %s", cfg.SHOPEE_CART_URL)
+    # ── [2/6] Buka browser ────────────────────────────────────────────────
+    log.info("[2/6] Buka browser → %s", cfg.SHOPEE_CART_URL)
     playwright, context, page = await open_browser(cfg.SHOPEE_CART_URL)
-    log.info("[2/5] ✓ Browser siap.")
+    log.info("[2/6] ✓ Browser siap.")
 
     # Pastikan tombol ada di DOM
     await page.wait_for_selector(cfg.CHECKOUT_BTN_SELECTOR, state="attached", timeout=10_000)
     log.info("Tombol Checkout siap di DOM ✓")
 
-    # ── [3/5] Observer Inject (Pre-T-0) ────────────────────────────────────
-    log.info("[3/5] Pre-injecting MutationObserver …")
+    # ── [3/6] Observer Inject (Pre-T-0) ────────────────────────────────────
+    log.info("[3/6] Pre-injecting MutationObserver …")
     await start_checkout_observer(page)
 
-    # ── [4/5] Timing wait ─────────────────────────────────────────────────
+    # ── [4/6] Timing wait ─────────────────────────────────────────────────
     remaining = target_unix - true_time(sync)
-    log.info("[4/5] Menunggu %.2f detik sampai T-0 …", remaining)
+    log.info("[4/6] Menunggu %.2f detik sampai T-0 …", remaining)
     delta_ms = await async_wait_until(sync, target_unix)
-    log.info("[4/5] ✓ T-0 tercapai. Delta: %+.3f ms", delta_ms)
+    log.info("[4/6] ✓ T-0 tercapai. Delta: %+.3f ms", delta_ms)
 
-    # ── [5/5] Harvester ───────────────────────────────────────────────────
-    log.info("[5/5] Waiting for T-0 signal …")
+    # ── [5/6] Harvester ───────────────────────────────────────────────────
+    log.info("[5/6] Waiting for T-0 signal …")
     try:
         obs_result = await finish_checkout_observer(page, sync)
     except Exception as exc:
-        log.error("[4/5] Observer gagal: %s", exc)
+        log.error("[5/6] Observer gagal: %s", exc)
         await close_browser(playwright, context)
         return
 
-    log.info("[4/5] ✓ Observer klik berhasil  latency=%.3f ms",
+    log.info("[5/6] ✓ Observer klik berhasil  latency=%.3f ms",
              obs_result.get("elapsed_ms", 0))
 
-    # ── [5/5] API checkout + fallback UI ────────────────────────────────────
-    log.info("[5/5] Menunggu Page B — API place_order + fallback UI …")
+    # ── [6/6] API checkout + fallback UI ────────────────────────────────────
+    log.info("[6/6] Menunggu Page B — API place_order + fallback UI …")
     try:
         result = await fire_checkout_page_b(page)
     except Exception as exc:
-        log.error("[5/5] Checkout gagal: %s", exc)
+        log.error("[6/6] Checkout gagal: %s", exc)
         await close_browser(playwright, context)
         return
 
