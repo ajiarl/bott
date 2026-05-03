@@ -212,19 +212,20 @@ async def run_test() -> None:
     await page.wait_for_selector(cfg.CHECKOUT_BTN_SELECTOR, state="attached", timeout=10_000)
     log.info("Tombol Checkout siap di DOM ✓")
 
-    # ── [3/5] Timing wait ─────────────────────────────────────────────────
+    # ── [3/5] Observer Inject (Pre-T-0) ────────────────────────────────────
+    log.info("[3/5] Pre-injecting MutationObserver …")
+    await start_checkout_observer(page)
+
+    # ── [4/5] Timing wait ─────────────────────────────────────────────────
     remaining = target_unix - true_time(sync)
-    log.info("[3/5] Menunggu %.2f detik sampai T-0 …", remaining)
+    log.info("[4/5] Menunggu %.2f detik sampai T-0 …", remaining)
     delta_ms = await async_wait_until(sync, target_unix)
-    log.info("[3/5] ✓ T-0 tercapai. Delta: %+.3f ms", delta_ms)
+    log.info("[4/5] ✓ T-0 tercapai. Delta: %+.3f ms", delta_ms)
 
-    # ── [4/5] Observer inject ─────────────────────────────────────────────
-    log.info("[4/5] Pre-injecting MutationObserver …")
-    obs_handle = await start_checkout_observer(page)
-
-    log.info("[4/5] Waiting for T-0 signal …")
+    # ── [5/5] Harvester ───────────────────────────────────────────────────
+    log.info("[5/5] Waiting for T-0 signal …")
     try:
-        obs_result = await finish_checkout_observer(obs_handle, page, sync)
+        obs_result = await finish_checkout_observer(page, sync)
     except Exception as exc:
         log.error("[4/5] Observer gagal: %s", exc)
         await close_browser(playwright, context)

@@ -138,13 +138,13 @@ async def main() -> None:
     try:
         if cfg.CHECKOUT_MODE == "dynamic":
             log.info("[DYNAMIC] Pre-injecting observer …")
-            obs_handle = await start_checkout_observer(page)
+            await start_checkout_observer(page)
 
             log.info("[DYNAMIC] Menunggu T-0 …")
             await async_wait_until(sync, target_unix)
 
             log.info("[DYNAMIC] T-0 tercapai. Menunggu sinyal observer …")
-            await finish_checkout_observer(obs_handle, page, sync)
+            await finish_checkout_observer(page, sync)
 
         elif cfg.CHECKOUT_MODE == "refresh":
             reload_ts = target_unix - (cfg.PRE_RELOAD_LEAD_MS / 1_000)

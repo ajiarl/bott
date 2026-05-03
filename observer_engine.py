@@ -29,34 +29,30 @@ CHECKOUT_BTN_SELECTOR = "button.shopee-button-solid.shopee-button-solid--primary
 _CHECKBOX_SELECTOR    = "input.stardust-checkbox__input"
 
 
-_OBSERVER_JS = """
+_SETUP_OBSERVER_JS = """
 () => {
-    return new Promise((resolve, reject) => {
+    const TARGET_SELECTOR = 'button.shopee-button-solid.shopee-button-solid--primary';
+    const TIMEOUT_MS      = {timeout_ms};
 
-        const TARGET_SELECTOR = 'button.shopee-button-solid.shopee-button-solid--primary';
-        const TIMEOUT_MS      = {timeout_ms};
-
+    window.__shopee_war_promise = new Promise((resolve, reject) => {
         const target = document.querySelector(TARGET_SELECTOR);
         if (!target) {
-            return reject(
-                'Tombol tidak ditemukan: "' + TARGET_SELECTOR + '". ' +
-                'Pastikan item sudah dicentang di keranjang.'
-            );
+            return reject('Tombol tidak ditemukan: "' + TARGET_SELECTOR + '"');
         }
 
         const isDisabled = (el) =>
             el.disabled === true || el.getAttribute('aria-disabled') === 'true';
 
+        // Fast-path
         if (!isDisabled(target)) {
             return resolve({
                 elapsed_ms: 0,
                 mechanism:  'fast-path',
-                note:       'Tombol sudah aktif saat injeksi — sinyal langsung ke Python.'
+                note:       'Tombol sudah aktif saat setup.'
             });
         }
 
         const t0 = performance.now();
-
         const observer = new MutationObserver((mutations) => {
             for (const m of mutations) {
                 if (m.type !== 'attributes') continue;
@@ -66,19 +62,17 @@ _OBSERVER_JS = """
 
                 observer.disconnect();
                 clearTimeout(safetyTimer);
-
-                return resolve({
+                resolve({
                     elapsed_ms: parseFloat((performance.now() - t0).toFixed(3)),
                     mechanism:  attr,
-                    note:       'MutationObserver (' + attr + ') fired — sinyal ke Python.'
+                    note:       'MutationObserver (' + attr + ') fired.'
                 });
             }
         });
 
         observer.observe(target, {
-            attributes:      true,
+            attributes: true,
             attributeFilter: ['disabled', 'aria-disabled'],
-            subtree:         false,
         });
 
         const safetyTimer = setTimeout(() => {
@@ -86,7 +80,13 @@ _OBSERVER_JS = """
             reject('Timeout ' + TIMEOUT_MS + ' ms: tombol tidak pernah aktif.');
         }, TIMEOUT_MS);
     });
+    
+    return true; // Setup selesai instan
 }
+"""
+
+_AWAIT_OBSERVER_JS = """
+() => window.__shopee_war_promise
 """
 
 
@@ -123,24 +123,23 @@ async def _auto_check_items(page: Page) -> None:
         log.warning("Auto-centang gagal (non-fatal): %s — lanjut.", exc)
 
 
-async def start_checkout_observer(page: Page) -> asyncio.Task:
+async def start_checkout_observer(page: Page) -> bool:
     """
     Suntik MutationObserver ke V8 heap tapi jangan ditunggu hasilnya dulu.
-    Menggunakan asyncio.Task agar eksekusi JS berjalan di background.
+    Script setup ini akan selesai instan setelah memasang observer di window.
     """
-    js = _OBSERVER_JS.replace("{timeout_ms}", str(cfg.OBSERVER_TIMEOUT_MS))
-    # Buat task untuk menjalankan evaluate di background
-    return asyncio.create_task(page.evaluate(js))
+    js = _SETUP_OBSERVER_JS.replace("{timeout_ms}", str(cfg.OBSERVER_TIMEOUT_MS))
+    return await page.evaluate(js)
 
 
-async def finish_checkout_observer(task: asyncio.Task, page: Page, sync: ClockSync) -> dict:
+async def finish_checkout_observer(page: Page, sync: ClockSync) -> dict:
     """
-    Tunggu hasil dari background task observer dan lakukan hardware click.
+    Awaits the observer promise stored on the window object.
     """
     try:
-        result = await task
+        result = await page.evaluate(_AWAIT_OBSERVER_JS)
     except Exception as exc:
-        raise RuntimeError(f"Observer background task failed: {exc}") from exc
+        raise RuntimeError(f"Observer await failed: {exc}") from exc
 
     try:
         await hardware_click(

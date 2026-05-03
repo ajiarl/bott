@@ -220,6 +220,8 @@ async def _dismiss_popups(page: Page) -> None:
                 continue
         if not found:
             break
+        # Tunggu sebentar agar animasi close selesai sebelum cek stacked popups
+        await asyncio.sleep(0.2)
 
 
 async def _fallback_hardware_click(page: Page, t_start: float) -> ApiCheckoutResult:
@@ -317,8 +319,7 @@ async def _fallback_hardware_click(page: Page, t_start: float) -> ApiCheckoutRes
             # Menggunakan wait_for_url dengan predicate untuk deteksi cepat
             await page.wait_for_url(
                 lambda u: u != url_before or "payment" in u.lower() or "order" in u.lower() or "success" in u.lower(),
-                timeout = 2500,
-                wait_until = "commit"
+                timeout = 2500
             )
             elapsed_ms = (time.perf_counter() - t_start) * 1000
             log.info("[PAGE-B] ✓ URL berubah → %s  T+%.0f ms", page.url, elapsed_ms)
