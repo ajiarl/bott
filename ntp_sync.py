@@ -43,83 +43,65 @@ class ClockSync:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def calibrate_ntp(
-    host         : str   = cfg.NTP_HOST,
-    sample_count : int   = cfg.NTP_SAMPLE_COUNT,
-    timeout      : float = cfg.NTP_TIMEOUT_SEC,
+    hosts        : list[str] = cfg.NTP_HOSTS,
+    sample_count : int       = cfg.NTP_SAMPLE_COUNT,
+    timeout      : float     = cfg.NTP_TIMEOUT_SEC,
 ) -> ClockSync:
     """
-    Kirim `sample_count` query NTP, hitung offset via MEDIAN (robust).
-
-    Kenapa median bukan best-RTT:
-        RTT kecil ≠ offset paling akurat.
-        Contoh: sample RTT=18ms bisa punya offset outlier karena asymmetric path.
-        Median kebal terhadap outlier — selama mayoritas sample tidak bias,
-        hasilnya tetap valid.
-
-    Outlier filter:
-        Sample dengan |offset - median| > 50ms dibuang sebelum median final.
-        Ini menangkap kasus server NTP bermasalah atau routing aneh.
-
-    Offset formula (RFC 5905 §8):
-        offset = ((T2-T1) + (T3-T4)) / 2
-    ntplib menghitung ini secara internal.
+    Kirim query NTP ke daftar `hosts`, kumpulkan total `sample_count` sample.
+    Menggunakan MEDIAN (robust) untuk menghitung offset final.
     """
     client   = ntplib.NTPClient()
     offsets  = []
     rtts     = []
-    best_rtt = None   # hanya untuk info RTT di log
+    best_rtt = None
     best_r   = None
 
-    log.info("Kalibrasi NTP: %s  (%d sample) …", host, sample_count)
+    log.info("Kalibrasi NTP: mencoba %d host …", len(hosts))
 
-    for i in range(sample_count):
-        try:
-            r = client.request(host, version=4, timeout=timeout)
-            offsets.append(r.offset)
-            rtts.append(r.delay)
+    for host in hosts:
+        needed = sample_count - len(offsets)
+        if needed <= 0:
+            break
 
-            # Simpan sample RTT terkecil hanya untuk info stratum/server_ip
-            if best_rtt is None or r.delay < best_rtt:
-                best_rtt = r.delay
-                best_r   = r
+        log.info("Query host: %s (%d sample lagi) …", host, needed)
+        for _ in range(needed):
+            try:
+                r = client.request(host, version=4, timeout=timeout)
+                offsets.append(r.offset)
+                rtts.append(r.delay)
 
-            log.debug("  [%d/%d] offset=%+.4f s  rtt=%.4f s  stratum=%d",
-                      i + 1, sample_count, r.offset, r.delay, r.stratum)
-            time.sleep(0.1)
-        except Exception as exc:
-            log.warning("  [%d/%d] gagal: %s", i + 1, sample_count, exc)
+                if best_rtt is None or r.delay < best_rtt:
+                    best_rtt = r.delay
+                    best_r   = r
+
+                log.debug("  [%s %d/%d] offset=%+.4f s  rtt=%.4f s",
+                          host, len(offsets), sample_count, r.offset, r.delay)
+                time.sleep(0.05)
+            except Exception as exc:
+                log.warning("  [%s] gagal sample: %s", host, exc)
+                break  # Ganti host jika satu sample gagal
 
     if not offsets:
-        raise RuntimeError("Semua query NTP gagal — periksa koneksi internet.")
+        raise RuntimeError("Semua host NTP gagal — periksa koneksi internet.")
 
     # ── Robust offset: median + outlier filter ────────────────────────────
-    # Step 1: median kasar dari semua sample
     raw_median = statistics.median(offsets)
-
-    # Step 2: buang outlier (|deviasi dari median| > 50ms)
     OUTLIER_THRESHOLD = 0.050   # 50 ms
     filtered = [o for o in offsets if abs(o - raw_median) < OUTLIER_THRESHOLD]
 
     if not filtered:
-        # Semua dibuang (jaringan sangat tidak stabil) — fallback ke raw median
         log.warning("Semua sample masuk outlier filter — pakai raw median.")
         filtered = offsets
 
     final_offset = statistics.median(filtered)
     std_dev      = statistics.pstdev(offsets) if len(offsets) > 1 else 0.0
 
-    log.debug(
-        "  Offset raw: %s → filtered: %d sample → final: %+.3f ms",
-        [f"{o*1000:+.1f}" for o in offsets],
-        len(filtered),
-        final_offset * 1000,
-    )
-
     sync = ClockSync(
-        offset_sec     = final_offset,          # ← MEDIAN, bukan best-RTT
-        rtt_sec        = best_r.delay,           # informatif
-        stratum        = best_r.stratum,
-        server_ip      = ntplib.ref_id_to_text(best_r.ref_id),
+        offset_sec     = final_offset,
+        rtt_sec        = best_r.delay if best_r else 0.0,
+        stratum        = best_r.stratum if best_r else 0,
+        server_ip      = ntplib.ref_id_to_text(best_r.ref_id) if best_r else "0.0.0.0",
         sample_count   = len(offsets),
         offset_std_dev = std_dev,
     )
@@ -132,11 +114,9 @@ def calibrate_ntp(
     log.info("  Sample valid  : %d / %d",   sync.sample_count, sample_count)
     log.info("─" * 52)
 
-    if sync.offset_std_dev > 0.010:
-        log.warning("Variance tinggi (%.1f ms) — jitter jaringan signifikan.",
+    if sync.offset_std_dev > 0.050:
+        log.warning("Variance sangat tinggi (%.1f ms) — waktu mungkin tidak akurat!",
                     sync.offset_std_dev * 1000)
-    if sync.stratum > 3:
-        log.warning("Stratum %d tinggi — pertimbangkan NTP server lebih dekat.", sync.stratum)
 
     return sync
 

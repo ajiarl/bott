@@ -14,8 +14,8 @@ from pathlib import Path
 #     flash sale WIB 18:00 → HOUR=11, MINUTE=0, SECOND=0
 #     flash sale WIB 20:00 → HOUR=13, MINUTE=0, SECOND=0
 # ══════════════════════════════════════════════════════════════════════════════
-FLASH_SALE_HOUR   = 20      # ← TEST: 20:55 UTC = 03:55 WIB
-FLASH_SALE_MINUTE = 55
+FLASH_SALE_HOUR   = 21      # ← TEST: 20:55 UTC = 03:55 WIB
+FLASH_SALE_MINUTE = 32
 FLASH_SALE_SECOND = 0
 FLASH_SALE_USEC   : int = 0
 
@@ -58,7 +58,7 @@ LAUNCH_ARGS = [
 # ══════════════════════════════════════════════════════════════════════════════
 #  6. NTP
 # ══════════════════════════════════════════════════════════════════════════════
-NTP_HOST         = "pool.ntp.org"
+NTP_HOSTS        = ["id.pool.ntp.org", "sg.pool.ntp.org", "pool.ntp.org"]
 NTP_SAMPLE_COUNT = 8
 NTP_TIMEOUT_SEC  = 3.0
 
