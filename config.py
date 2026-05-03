@@ -73,7 +73,7 @@ MAX_RTT_MS     =  300.0
 NAV_TIMEOUT_MS      = 15_000
 SKELETON_TIMEOUT_MS =  5_000
 CONFIRM_TIMEOUT_MS  = 25_000
-OBSERVER_TIMEOUT_MS = 30_000
+OBSERVER_TIMEOUT_MS = 30_000   # Penting: harus > (T-0 minus waktu bot mulai standby)
 TOTAL_BUDGET_MS     = 60_000
 
 # ══════════════════════════════════════════════════════════════════════════════
